@@ -14,25 +14,24 @@
     (else #f)))
 
 (define (evlis args env)
-  (map (lambda (x) (eval x env)) args))
+  (map (lambda (exp)
+          (eval exp env)) args))
 
 (define (eval-application op args env)
   (apply-op op (evlis args env)))
 
 (define (apply-op op args)
   (cond
-   ((eq? op '+) 
-    (begin
-      (println "execing + w/args" args)
-      (apply + args)))
-   (error "unsupported op: " op)))
+   ((eq? op '+) (apply + args))
+   ((eq? op '*) (apply * args))
+   (else
+      (println "Unknown operator: " op))))
 
 (define (application? exp)
   (and (pair? exp)
        (symbol? (car exp))))
 
 (define (eval-self exp)
-  (println "eval self: " exp)
   exp)
 
 (define (eval exp env)
