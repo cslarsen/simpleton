@@ -1,26 +1,11 @@
 ;; Compiler based on SICP chapter 4 and 5
 
-;(import
-  ;(scheme base)
-  ;(scheme write)
-  ;(scheme cxr)
-  ;(scheme read))
-
-(define (print . args)
-  (for-each display args))
-
-(define (println . args)
-  (apply print args)
-  (newline))
-
-(define (prints . args)
-  (for-each (lambda (x)
-              (display x)
-              (display " ")) args))
-
-(define (printsln . args)
-  (apply prints args)
-  (newline))
+(import
+  (scheme base)
+  (scheme write)
+  (scheme cxr)
+  (scheme read)
+  (print))
 
 (define (self-evaluating? exp)
   (or (number? exp)
@@ -132,12 +117,19 @@
 (define (compile-application exp target linkage)
   (printsln "application: " exp target linkage))
 
+(define (preserving reg . rest)
+  (println "preserve: " reg))
+
 (define (compile-sequence seq target linkage)
   (if (last-exp? seq)
     (compile (first-exp seq) target linkage)
     (preserving '(env continue)
       (compile (first-exp seq) target 'next)
       (compile-sequence (rest-exps seq) target linkage))))
+
+(define (compile-definition exp target linkage)
+  (println "compile definition: " exp)
+  (println "  target: " target " linkage: " linkage))
 
 (define (compile exp target linkage)
   (cond
@@ -162,4 +154,4 @@
 
 (let ((source (cons 'begin (read-all))))
   (println source)
-  (println "rest: " (compile source 'main 'return)))
+  (println "rest: " (compile source 'main-return 'return)))
