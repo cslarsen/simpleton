@@ -18,10 +18,11 @@
     ((application? exp) (compile-application exp target linkage))
     ((define-library? exp) (compile-library exp target linkage))
     (else
-      (error exp))))
+      (error "Unknown expression: " exp))))
 
-(define (tee x)
-  (println x) x)
+(define (tee . args)
+  (apply println args)
+  args)
 
 (define (pprint x)
   (print "(" (car x))
@@ -81,13 +82,13 @@
          (body (cons 'begin (cddr exp))))
      (tee `(define (name: ,name)
                    (args: ,args)
-                   (body: ,body)))))
+                   (body: ,(compile body target linkage))))))
 
 (define (compile-if exp target linkage)
-  (println "compile-if: " exp))
+  (tee `(if-statement ,exp)))
 
 (define (compile-lambda exp target linkage)
-  (println "compile-lambda: " exp))
+  (error "compile-lambda"))
 
 (define (compile-application exp target linkage)
   (let ((name (car exp))
