@@ -8,5 +8,8 @@ all: $(TARGETS)
 %: %.st
 	@python trans2.py $<
 
+comp2: comp2.scm
+	cat $< | chibi-scheme $<
+
 clean:
 	rm -f $(TARGETS) a.out
