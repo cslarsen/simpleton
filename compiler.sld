@@ -25,8 +25,14 @@
     lambda-body
     lambda-parameters
     lambda?
+    let-body
+    let-name
+    let-parameter-names
+    let-parameters
+    let?
     library-definition?
     make-lambda
+    named-let?
     pure-lambda?
     quoted?
     tagged-list?
@@ -55,6 +61,7 @@
        (if if?)
        (import import?)
        (lambda lambda?)
+       (let let?)
        (quote quoted?)
        (set! assignment?))
 
@@ -63,6 +70,25 @@
 
     (define (assignment-value exp)
       (caddr exp))
+
+    (define (named-let? exp)
+      (and (let? exp) (symbol? (cadr exp))))
+
+    (define (let-name exp)
+      (if (named-let? exp) (cadr exp) #f))
+
+    (define (let-parameters exp)
+      (if (named-let? exp)
+          (caddr exp)
+          (cadr exp)))
+
+    (define (let-parameter-names exp)
+      (map car (let-parameters exp)))
+
+    (define (let-body exp)
+      (if (named-let? exp)
+          (cadddr exp)
+          (caddr exp)))
 
     (define (application? exp)
       (and (pair? exp)
@@ -115,13 +141,23 @@
           (not (not exp))
           (and (not (not (car exp))) (true? (cdr exp)))))
 
-    (define (pure-lambda?-helper variables exp)
-      (debug "  pure-lambda? " variables " for " exp)
+    (define (pure-begin? variables exp)
+      ;(debug "  pure-begin? vars " variables " exp " exp)
+      (cond
+        ((null? exp) #t)
+        ((definition? (car exp))
+         (let ((variables (cons (definition-variable (car exp))
+                                variables)))
+            (and (pure-lambda?-helper variables (definition-value (car exp)))
+                 (pure-begin? variables (cdr exp)))))
+        (else
+          (if (pure-lambda?-helper variables (car exp))
+              (pure-begin? variables (cdr exp))
+              #f))))
 
-      ;; TODO: Must transform let blocks so newly introduced variables are
-      ;; accounted for as well. Additionally, internal definitions are not
-      ;; accounted for here; in a begin-sequence, we must add to the variables
-      ;; whenever we encounter an internal definition.
+    (define (pure-lambda?-helper variables exp)
+      ;(debug "  pure-lambda? " variables " for " exp)
+      ;; TODO: Must handle all internal bindings (all let-blocks, etc.)
       (cond
         ((eq? exp '()) #t)
         ((self-evaluating? exp) #t)
@@ -138,26 +174,33 @@
          (pure-lambda?-helper (append (lambda-parameters exp) variables)
                               (lambda-body exp)))
 
+        ((let? exp)
+         (pure-lambda?-helper (append (let-parameter-names exp) variables)
+                              (let-body exp)))
+
         ((assignment? exp)
          (true? (pure-lambda?-helper variables (assignment-variable exp))
                 (pure-lambda?-helper variables (assignment-value exp))))
 
         ((begin? exp)
-         (true? (map (lambda (x)
-                       (pure-lambda?-helper variables x))
-                     (cdr exp))))
+         (pure-begin? variables (cdr exp)))
 
         ((definition? exp)
          (true? (pure-lambda?-helper variables (definition-variable exp))
                 (pure-lambda?-helper variables (definition-value exp))))
 
         ((application? exp)
+         ; We don't check that the first symbol actually exists. Strictly
+         ; speaking, all Scheme procedures are impure, because they use
+         ; procedures defined elsewhere. So in (lambda (x) (* x x)) the *
+         ; operator is globally defined. So we can't trust this function one
+         ; hundred percent. A better name for pure? would be "referentially
+         ; transparent".
          (true? (map (lambda (x)
                        (pure-lambda?-helper variables x))
-                     (cdr exp)))) ; theoretically, all funcs are non-pure because
-                                  ; they may use functions defined elsewhere
+                     (cdr exp))))
 
-        ; for completeness, add these as well, although they are only allowed
+        ; For completeness, add these as well, although they are only allowed
         ; top-level, and at the beginning of the file
         ((import? exp) #t)
         ((library-definition? exp) #t)
