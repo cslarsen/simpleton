@@ -35,6 +35,7 @@
     named-let?
     pure-lambda?
     quoted?
+    self-evaluating?
     tagged-list?
     variable?)
 
