@@ -4,7 +4,9 @@
 (define-library (compiler)
   (import (scheme base)
           (scheme cxr)
-          (scheme write))
+          (scheme write)
+          (rename (only (print) println)
+                  (println debug)))
   (export
     application?
     assignment-value
@@ -25,6 +27,7 @@
     lambda?
     library-definition?
     make-lambda
+    pure-lambda?
     quoted?
     tagged-list?
     variable?)
@@ -95,8 +98,72 @@
     (define (if-predicate exp)
       (cadr exp))
 
-    (define if-consequent exp)
-      (caddr exp)
+    (define (if-consequent exp)
+      (caddr exp))
+
+    (define (make-sequence exp)
+      (if (begin? exp) exp
+          (cons 'begin exp)))
+
+    (define (pure-lambda? exp)
+      (pure-lambda?-helper (lambda-parameters exp)
+                           (make-sequence (lambda-body exp))))
+
+    (define (true? exp)
+     ;; TODO: This blows up the stack
+      (if (not (pair? exp))
+          (not (not exp))
+          (and (not (not (car exp))) (true? (cdr exp)))))
+
+    (define (pure-lambda?-helper variables exp)
+      (debug "  pure-lambda? " variables " for " exp)
+
+      ;; TODO: Must transform let blocks so newly introduced variables are
+      ;; accounted for as well. Additionally, internal definitions are not
+      ;; accounted for here; in a begin-sequence, we must add to the variables
+      ;; whenever we encounter an internal definition.
+      (cond
+        ((eq? exp '()) #t)
+        ((self-evaluating? exp) #t)
+        ((variable? exp) (true? (memq exp variables)))
+        ((quoted? exp) #t)
+
+        ((if? exp)
+         (true? (pure-lambda?-helper variables (if-predicate exp))
+                (pure-lambda?-helper variables (if-consequent exp))))
+
+        ((cond? exp) (error "unimplemented"))
+
+        ((lambda? exp)
+         (pure-lambda?-helper (append (lambda-parameters exp) variables)
+                              (lambda-body exp)))
+
+        ((assignment? exp)
+         (true? (pure-lambda?-helper variables (assignment-variable exp))
+                (pure-lambda?-helper variables (assignment-value exp))))
+
+        ((begin? exp)
+         (true? (map (lambda (x)
+                       (pure-lambda?-helper variables x))
+                     (cdr exp))))
+
+        ((definition? exp)
+         (true? (pure-lambda?-helper variables (definition-variable exp))
+                (pure-lambda?-helper variables (definition-value exp))))
+
+        ((application? exp)
+         (true? (map (lambda (x)
+                       (pure-lambda?-helper variables x))
+                     (cdr exp)))) ; theoretically, all funcs are non-pure because
+                                  ; they may use functions defined elsewhere
+
+        ; for completeness, add these as well, although they are only allowed
+        ; top-level, and at the beginning of the file
+        ((import? exp) #t)
+        ((library-definition? exp) #t)
+
+        (else
+          (error "Unknown expression: " exp))))
 
     (define (if-alternative exp)
       (if (not (null? (cdddr exp)))
